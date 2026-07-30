@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>ASS Actor Name Transfer — перенос имён актёров между субтитрами</title>
+<style>
+  :root{
+    --bg:#12151a;
+    --panel:#1b2028;
+    --panel-2:#20262f;
+    --line:#2c3340;
+    --text:#e7ebf0;
+    --text-dim:#8b96a5;
+    --accent:#5fb3a3;
+    --accent-2:#e8a34b;
+    --danger:#e0685b;
+    --ok:#5fb37a;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+  }
+  .wrap{
+    max-width:960px;
+    margin:0 auto;
+    padding:40px 24px 80px;
+  }
+  header{margin-bottom:32px;}
+  header .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin-bottom:8px;
+  }
+  h1{
+    font-size:28px;
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    color:var(--text-dim);
+    margin:0;
+    max-width:640px;
+    line-height:1.5;
+    font-size:14px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+    margin:28px 0;
+  }
+  @media (max-width:720px){ .grid{grid-template-columns:1fr;} }
+
+  .dropzone{
+    background:var(--panel);
+    border:1.5px dashed var(--line);
+    border-radius:10px;
+    padding:22px;
+    transition:border-color .15s ease, background .15s ease;
+    position:relative;
+  }
+  .dropzone.drag{
+    border-color:var(--accent);
+    background:var(--panel-2);
+  }
+  .dropzone.filled{
+    border-style:solid;
+    border-color:var(--accent);
+  }
+  .dz-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .dz-tag{
+    background:var(--accent);
+    color:#0c1310;
+    font-weight:700;
+    border-radius:4px;
+    padding:2px 6px;
+    font-size:10px;
+  }
+  .dz-tag.ru{background:var(--accent-2); color:#241704;}
+  .dz-body{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .dz-filename{
+    font-size:14px;
+    word-break:break-all;
+    color:var(--text);
+  }
+  .dz-hint{
+    font-size:12.5px;
+    color:var(--text-dim);
+    line-height:1.4;
+  }
+  .dz-meta{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ok);
+  }
+  .btn{
+    appearance:none;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--text);
+    padding:8px 14px;
+    border-radius:7px;
+    font-size:13px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#0c1310;
+    font-weight:600;
+    padding:11px 20px;
+    font-size:14px;
+  }
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.primary:disabled{background:var(--panel-2); color:var(--text-dim); border-color:var(--line);}
+
+  input[type=file]{display:none;}
+
+  .actions{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin:8px 0 28px;
+  }
+
+  .threshold{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:13px;
+    color:var(--text-dim);
+    font-family:var(--mono);
+  }
+  .threshold input{
+    width:60px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:5px;
+    padding:5px 7px;
+    font-family:var(--mono);
+    font-size:13px;
+  }
+
+  #log{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    line-height:1.6;
+    white-space:pre-wrap;
+    min-height:60px;
+    color:var(--text-dim);
+  }
+  #log .ok{color:var(--ok);}
+  #log .warn{color:var(--accent-2);}
+  #log .err{color:var(--danger);}
+  #log .hi{color:var(--text);}
+
+  #result{
+    margin-top:20px;
+    display:none;
+    align-items:center;
+    gap:14px;
+    background:var(--panel-2);
+    border:1px solid var(--accent);
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  #result.show{display:flex;}
+  #result .stat{
+    font-size:13px;
+    color:var(--text-dim);
+  }
+  #result .stat b{color:var(--text);}
+
+  .section-title{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin:0 0 10px;
+  }
+
+  a.dl{
+    color:#0c1310;
+    background:var(--accent);
+    text-decoration:none;
+    padding:9px 16px;
+    border-radius:7px;
+    font-weight:600;
+    font-size:13px;
+  }
+  a.dl:hover{filter:brightness(1.08);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">ASS · перенос имён актёров по таймингу</div>
+    <h1>Actor Name Transfer</h1>
+    <p>Сопоставляет реплики русских и английских субтитров (.ass) по временнóму перекрытию
+    и копирует имя актёра (поле <code>Name</code>) из английской реплики в русскую,
+    если перекрытие ≥ порога от длительности русской реплики. Всё выполняется локально
+    в браузере — файлы никуда не отправляются.</p>
+  </header>
+
+  <div class="grid">
+    <div class="dropzone" id="dz-en">
+      <div class="dz-label"><span class="dz-tag">EN</span> Файл-источник (английский)</div>
+      <div class="dz-body">
+        <div class="dz-filename" id="fn-en">Файл не выбран</div>
+        <div class="dz-hint">Перетащите .ass файл сюда или</div>
+        <button class="btn" id="btn-en">Выбрать файл</button>
+        <div class="dz-meta" id="meta-en"></div>
+      </div>
+      <input type="file" id="file-en" accept=".ass">
+    </div>
+
+    <div class="dropzone" id="dz-ru">
+      <div class="dz-label"><span class="dz-tag ru">RU</span> Файл-приёмник (русский)</div>
+      <div class="dz-body">
+        <div class="dz-filename" id="fn-ru">Файл не выбран</div>
+        <div class="dz-hint">Перетащите .ass файл сюда или</div>
+        <button class="btn" id="btn-ru">Выбрать файл</button>
+        <div class="dz-meta" id="meta-ru"></div>
+      </div>
+      <input type="file" id="file-ru" accept=".ass">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="btn-process" disabled>Перенести имена актёров</button>
+    <div class="threshold">
+      порог перекрытия:
+      <input type="number" id="threshold" value="70" min="1" max="100"> %
+    </div>
+  </div>
+
+  <div class="section-title">Журнал</div>
+  <div id="log">Ожидание файлов…</div>
+
+  <div id="result">
+    <a class="dl" id="dl-link" download>Скачать результат</a>
+    <div class="stat" id="result-stat"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const state = { en:null, ru:null };
+
+  // ---------- UI: dropzone wiring ----------
+  function wireDropzone(zoneId, inputId, btnId, key){
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', e => {
+      if (e.target.files && e.target.files[0]) handleFile(key, e.target.files[0], zone);
+    });
+
+    ['dragenter','dragover'].forEach(evt=>{
+      zone.addEventListener(evt, e=>{
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.add('drag');
+      });
+    });
+    ['dragleave','drop'].forEach(evt=>{
+      zone.addEventListener(evt, e=>{
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.remove('drag');
+      });
+    });
+    zone.addEventListener('drop', e=>{
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) handleFile(key, f, zone);
+    });
+  }
+
+  function handleFile(key, file, zone){
+    state[key] = { file, text:null, dialogues:null };
+    document.getElementById('fn-'+key).textContent = file.name;
+    zone.classList.add('filled');
+    document.getElementById('meta-'+key).textContent = 'загрузка…';
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      let text = reader.result;
+      // Снимаем BOM, если он есть, чтобы не мешал парсингу строк.
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      state[key].text = text;
+      try{
+        const parsed = parseAssFile(text);
+        state[key].parsed = parsed;
+        document.getElementById('meta-'+key).textContent =
+          `реплик Dialogue: ${parsed.dialogues.length}`;
+      }catch(err){
+        document.getElementById('meta-'+key).textContent = 'ошибка парсинга: ' + err.message;
+      }
+      updateProcessButton();
+    };
+    reader.onerror = () => {
+      document.getElementById('meta-'+key).textContent = 'не удалось прочитать файл';
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function updateProcessButton(){
+    const btn = document.getElementById('btn-process');
+    btn.disabled = !(state.en && state.en.parsed && state.ru && state.ru.parsed);
+  }
+
+  wireDropzone('dz-en','file-en','btn-en','en');
+  wireDropzone('dz-ru','file-ru','btn-ru','ru');
+
+  // ---------- Логирование ----------
+  function log(html){
+    document.getElementById('log').innerHTML = html;
+  }
+
+  // ---------- Разбор времени ASS: H:MM:SS.cc -> секунды (float) ----------
+  function parseAssTime(t){
+    const m = /^(\d+):(\d{2}):(\d{2})[.,](\d{1,2})$/.exec(t.trim());
+    if (!m) return null;
+    const h = parseInt(m[1],10), mm = parseInt(m[2],10), ss = parseInt(m[3],10);
+    const cs = parseInt(m[4].padEnd(2,'0'),10);
+    return h*3600 + mm*60 + ss + cs/100;
+  }
+
+  // ---------- Разбор всего .ass файла ----------
+  // Возвращает: { lines: [оригинальные строки], eol, events:{formatIdx, formatLineIdx, fieldMap}, dialogues:[{lineIdx, parts, start, end, name, isDialogue}] }
+  function parseAssFile(text){
+    const eol = text.indexOf('\r\n') !== -1 ? '\r\n' : '\n';
+    const lines = text.split(/\r\n|\r|\n/);
+
+    let inEvents = false;
+    let fieldMap = null; // имя_поля -> индекс, взято из строки Format: в разделе [Events]
+    const dialogues = [];
+
+    for (let i=0; i<lines.length; i++){
+      const raw = lines[i];
+      const trimmed = raw.trim();
+
+      if (/^\[.+\]$/.test(trimmed)){
+        inEvents = /^\[events\]$/i.test(trimmed);
+        continue;
+      }
+
+      if (!inEvents) continue;
+
+      if (/^Format\s*:/i.test(trimmed)){
+        const rest = trimmed.replace(/^Format\s*:\s*/i,'');
+        const cols = rest.split(',').map(s=>s.trim().toLowerCase());
+        fieldMap = {};
+        cols.forEach((name, idx) => { fieldMap[name] = idx; });
+        continue;
+      }
+
+      if (/^Dialogue\s*:/i.test(raw)){
+        const prefixMatch = raw.match(/^(\s*Dialogue\s*:\s*)([\s\S]*)$/i);
+        if (!prefixMatch) continue;
+        const prefix = prefixMatch[1];
+        const rest = prefixMatch[2];
+        const parts = rest.split(',');
+
+        if (!fieldMap){
+          // Формат по умолчанию, если строка Format: не встретилась
+          fieldMap = { layer:0, start:1, end:2, style:3, name:4,
+                       marginl:5, marginr:6, marginv:7, effect:8, text:9 };
+        }
+
+        const numFixedFields = Object.keys(fieldMap).length;
+        if (parts.length < numFixedFields) continue; // повреждённая строка — пропускаем
+
+        // Текст (последнее поле по формату) может содержать запятые —
+        // соберём все "лишние" части обратно в текстовое поле.
+        const textIdx = fieldMap.text !== undefined ? fieldMap.text : (numFixedFields-1);
+        if (parts.length > numFixedFields){
+          const joinedText = parts.slice(textIdx).join(',');
+          parts.length = numFixedFields;
+          parts[textIdx] = joinedText;
+        }
+
+        const startStr = parts[fieldMap.start];
+        const endStr = parts[fieldMap.end];
+        const start = parseAssTime(startStr);
+        const end = parseAssTime(endStr);
+        const nameIdx = fieldMap.name;
+
+        dialogues.push({
+          lineIdx: i,
+          prefix,
+          parts,
+          nameIdx,
+          start, end,
+          name: nameIdx !== undefined ? parts[nameIdx] : ''
+        });
+      }
+    }
+
+    return { lines, eol, fieldMap, dialogues };
+  }
+
+  // ---------- Перенос имён ----------
+  function transferActorNames(enParsed, ruParsed, thresholdPct){
+    const threshold = thresholdPct / 100;
+    const enD = enParsed.dialogues.filter(d => d.start !== null && d.end !== null);
+
+    let matchedCount = 0;
+    let uncheckedCount = 0; // реплики без валидных таймингов
+
+    const resultLines = ruParsed.lines.slice(); // копия для модификации
+
+    ruParsed.dialogues.forEach(ru => {
+      if (ru.start === null || ru.end === null || ru.nameIdx === undefined){
+        uncheckedCount++;
+        return;
+      }
+      const ruDuration = ru.end - ru.start;
+      if (ruDuration <= 0){
+        uncheckedCount++;
+        return;
+      }
+
+      let best = null;
+      let bestOverlap = 0;
+
+      for (const en of enD){
+        const overlapStart = Math.max(ru.start, en.start);
+        const overlapEnd = Math.min(ru.end, en.end);
+        const overlap = overlapEnd - overlapStart;
+        if (overlap <= 0) continue;
+        const ratio = overlap / ruDuration;
+        if (ratio >= threshold && overlap > bestOverlap){
+          bestOverlap = overlap;
+          best = en;
+        }
+      }
+
+      if (best){
+        const newParts = ru.parts.slice();
+        newParts[ru.nameIdx] = best.name;
+        const newLine = ru.prefix + newParts.join(',');
+        resultLines[ru.lineIdx] = newLine;
+        matchedCount++;
+      }
+    });
+
+    return {
+      text: resultLines.join(ruParsed.eol),
+      matchedCount,
+      totalRu: ruParsed.dialogues.length,
+      uncheckedCount
+    };
+  }
+
+  // ---------- Кнопка "Перенести" ----------
+  document.getElementById('btn-process').addEventListener('click', () => {
+    const thresholdPct = parseFloat(document.getElementById('threshold').value) || 70;
+
+    log('Обработка…');
+
+    let out;
+    try{
+      out = transferActorNames(state.en.parsed, state.ru.parsed, thresholdPct);
+    }catch(err){
+      log(`<span class="err">Ошибка обработки: ${err.message}</span>`);
+      return;
+    }
+
+    const notMatched = out.totalRu - out.matchedCount - out.uncheckedCount;
+
+    log(
+      `<span class="ok">Готово.</span>\n` +
+      `Всего русских реплик: <span class="hi">${out.totalRu}</span>\n` +
+      `Имя перенесено: <span class="ok">${out.matchedCount}</span>\n` +
+      `Совпадение не найдено (перекрытие < ${thresholdPct}%): <span class="warn">${notMatched}</span>\n` +
+      (out.uncheckedCount ? `Пропущено (нет корректных таймингов): <span class="warn">${out.uncheckedCount}</span>\n` : '')
+    );
+
+    // Формируем имя файла: <исходное_ru>_with_actors.ass
+    const ruName = state.ru.file.name.replace(/\.ass$/i, '');
+    const outName = ruName + '_with_actors.ass';
+
+    // Пишем с BOM в начале — это повышает совместимость с плеерами
+    // при определении кодировки кириллических субтитров.
+    const blob = new Blob(['\uFEFF' + out.text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.getElementById('dl-link');
+    link.href = url;
+    link.download = outName;
+    link.textContent = 'Скачать ' + outName;
+
+    document.getElementById('result-stat').innerHTML =
+      `<b>${out.matchedCount}</b> / ${out.totalRu} реплик получили имя актёра`;
+    document.getElementById('result').classList.add('show');
+  });
+
+})();
+</script>
+</body>
+</html>
